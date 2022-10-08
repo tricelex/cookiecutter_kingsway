@@ -1,12 +1,11 @@
 [tool.poetry]
 name = "{{ cookiecutter.project_slug }}"
 version = "0.1.0"
-description = ""
+description = "{{ cookiecutter.project_description }}"
 authors = ["emmanuelokoye <tricelex@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-Django = "^4.0.4"
 
 [tool.poetry.dev-dependencies]
 

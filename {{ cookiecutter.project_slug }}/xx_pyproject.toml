@@ -1,9 +1,9 @@
 [tool.poetry]
 name = "{{ cookiecutter.project_name }}"
-description = "{{ cookiecutter.project_verbose_name }}"
+description = "{{ cookiecutter.project_description }}"
 version = "0.1.0"
 readme = "README.md"
-authors = ["{{ cookiecutter.project_domain }}"]
+authors = ["emmanuelokoye <tricelex@gmail.com>"]
 
 
 [tool.poetry.dependencies]
