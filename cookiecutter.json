@@ -1,4 +1,7 @@
 {
   "project_name": "My Awesome Project",
-  "project_slug": "{{ cookiecutter.project_name.lower()|replace(' ', '_')|replace('-', '_')|replace('.', '_')|trim() }}"
+  "project_slug": "{{ cookiecutter.project_name.lower()|replace(' ', '_')|replace('-', '_')|replace('.', '_')|trim() }}",
+  "author_name": "Emmanuel Okoye",
+  "author_email": "tricelex@gmail.com",
+  "project_description": "lorem Ipsum ergo vidi"
 }

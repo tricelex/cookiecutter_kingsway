@@ -1,0 +1,28 @@
+# Config for Dependabot updates. See Documentation here:
+# https://docs.github.com/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/configuration-options-for-dependency-updates
+# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # Update GitHub actions in workflows
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'update'
+
+  - package-ecosystem: pip
+    directory: "/{{cookiecutter.project_slug}}"
+    schedule:
+      interval: daily
+      time: "02:00"
+    open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "django"
+        # Ignore non-LTS Django releases
+        # https://www.djangoproject.com/download/#supported-versions
+        versions:
+          - ">=4.0,<4.2"
+          - ">=5.0,<5.2"
+
