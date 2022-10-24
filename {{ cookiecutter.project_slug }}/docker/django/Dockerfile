@@ -82,16 +82,23 @@ RUN echo "$DJANGO_ENV" && poetry version \
   && if [ "$DJANGO_ENV" = 'production' ]; then rm -rf "$POETRY_CACHE_DIR"; fi
 
 # This is a special case. We need to run this script as an entry point:
-COPY ./docker/django/entrypoint.sh /docker-entrypoint.sh
+COPY ./docker/django/web-entrypoint.sh /
+COPY ./docker/django/worker-entrypoint.sh /
+COPY ./docker/django/scheduler-entrypoint.sh /
+COPY ./docker/django/flower-entrypoint.sh /
+
 
 # Setting up proper permissions:
-RUN chmod +x '/docker-entrypoint.sh'
+RUN chmod +x '/web-entrypoint.sh'
+RUN chmod +x '/worker-entrypoint.sh'
+RUN chmod +x '/scheduler-entrypoint.sh'
+RUN chmod +x '/flower-entrypoint.sh'
 
 # Running as non-root user:
 USER web
 
 # We customize how our app is loaded with the custom entrypoint:
-ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
+ENTRYPOINT ["tini", "--", "/web-entrypoint.sh"]
 
 
 # The following stage is only for production:

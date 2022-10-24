@@ -20,6 +20,6 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # path('api/', include(('styleguide_example.api.urls', 'api'))),
+    # path('api/', include(('{{ cookiecutter.project_slug }}.api.urls', 'api'))),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

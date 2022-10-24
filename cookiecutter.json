@@ -1,7 +1,7 @@
 {
   "project_name": "My Awesome Project",
   "project_slug": "{{ cookiecutter.project_name.lower()|replace(' ', '_')|replace('-', '_')|replace('.', '_')|trim() }}",
-  "project_domain" "{{ cookiecutter.project_slug }}.com",
+  "project_domain": "{{ cookiecutter.project_slug }}.com",
   "project_description": "lorem Ipsum ergo vidi",
   "organization": "My Awesome Organization",
   
