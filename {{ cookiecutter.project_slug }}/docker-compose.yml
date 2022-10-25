@@ -3,6 +3,8 @@ version: "3.9"
 x-common-spec:
   &common-spec
   env_file: ./config/.env
+  networks:
+    - webnet
 
 x-django-container-spec:
   &django-container-spec
@@ -21,11 +23,19 @@ services:
     restart: unless-stopped
     volumes:
       - pgdata:/var/lib/postgresql/data
-    networks:
-      - webnet
 
   rabbitmq:
-    image: "rabbitmq:alpine"
+    <<: *common-spec
+    image: rabbitmq:3.7.2-management-alpine
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=JKSDFHSJF7834GHBF3FBEI
+      - RABBITMQ_DEFAULT_USER=rabbitmq
+      - RABBITMQ_DEFAULT_PASS=rabbitmq
+      - RABBITMQ_DEFAULT_VHOST=my_vhost
 
     healthcheck:
       test: rabbitmq-diagnostics -q ping
@@ -34,6 +44,7 @@ services:
       retries: 3
 
   django:
+    &django
     <<: *django-container-spec
     image: "{{ cookiecutter.project_slug }}:dev"
     build:
@@ -50,14 +61,11 @@ services:
     command: python -Wd manage.py runserver 0.0.0.0:8000
     environment:
       DJANGO_DATABASE_HOST: db
-
     volumes:
       - django-static:/var/www/django/static
     depends_on:
       - db
       - rabbitmq
-    networks:
-      - webnet
     restart: on-failure
     healthcheck:
       # We use `$$` here because:
@@ -74,8 +82,7 @@ services:
       start_period: 30s
 
   worker:
-    <<: *django-container-spec
-    command: celery -A {{ cookiecutter.project_slug }}.tasks worker -l info --without-gossip --without-mingle --without-heartbeat
+    <<: *django
     volumes:
       - .:/code
     depends_on:
@@ -86,8 +93,7 @@ services:
       - /worker-entrypoint.sh
 
   scheduler:
-    <<: *django-container-spec
-    command: celery -A {{ cookiecutter.project_slug }}.tasks beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    <<: *django
     volumes:
       - .:/code
     depends_on:
@@ -96,6 +102,24 @@ services:
     restart: on-failure
     entrypoint:
       - /scheduler-entrypoint.sh
+
+  flower:
+    <<: *django
+    volumes:
+      - .:/code
+    entrypoint:
+      - /flower-entrypoint.sh
+    ports:
+      - "5555:5555"
+    
+{%- if cookiecutter.use_mailhog == 'y' %}
+  mailhog:
+    <<: *common-spec
+    image: mailhog/mailhog:v1.0.0
+    container_name: {{ cookiecutter.project_slug }}_mailhog
+    ports:
+      - "8025:8025"
+{%- endif %}
 
 networks:
   # Network for your internals, use it by default:

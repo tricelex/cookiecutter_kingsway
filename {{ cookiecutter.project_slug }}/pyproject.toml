@@ -10,18 +10,21 @@ python = "^3.10"
 # Django
 Django = "^4.0.4"
 django-environ = "0.9.0"
+whitenoise = "^6.2.0"
+watchfiles = "^0.18.0"
 
 
 # Celery
 celery = "^5.2.2"
 django-celery-beat = "^2.3.0"
 django-celery-results = "^2.2.0"
+flower = "^1.2.0"
 pytz = "^2021.3"
 
 # DRF
-djangorestframework = "^3.12.4"
+djangorestframework = "3.13.1"
 djangorestframework-simplejwt = "^4.8.0"
-
+drf-jwt = "^1.19.2"
 
 # Prod
 gunicorn = "^20.1.0"

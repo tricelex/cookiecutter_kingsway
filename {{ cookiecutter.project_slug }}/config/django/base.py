@@ -103,7 +103,19 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres:///{{ cookiecutter.project_slug }}'),
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('POSTGRES_DB'),
+        'USER': env('POSTGRES_USER'),
+        'PASSWORD': env('POSTGRES_PASSWORD'),
+        'HOST': env('DJANGO_DATABASE_HOST'),
+        'PORT': env('DJANGO_DATABASE_PORT'),
+        # 'CONN_MAX_AGE': env('CONN_MAX_AGE', '60'),
+        'OPTIONS': {
+            'connect_timeout': 10,
+            'options': '-c statement_timeout=15000ms',
+        },
+    },
 }
 DATABASES['default']['ATOMIC_REQUESTS'] = True
 

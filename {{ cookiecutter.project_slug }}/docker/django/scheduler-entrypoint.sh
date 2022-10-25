@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-until cd src
+set -o errexit
+set -o nounset
+set -o pipefail
+
+until cd config
 do
     echo "Waiting for volume..."
 done
@@ -8,4 +12,5 @@ done
 rm -f /celerybeat/*.pid
 exec "$@"
 
-C_FORCE_ROOT=true DJANGO_SETTINGS_MODULE="config.django.base" poetry run celery beat -A quickcheckbackend -l debug --pidfile=/celerybeat/celerybeat.pid --schedule=/celerybeat/celerybeat-schedule
+celery -A {{ cookiecutter.project_slug }}.tasks.celery beat -l INFO --pidfile=/celerybeat/celerybeat.pid --schedule=/celerybeat/celerybeat-schedule
+ 

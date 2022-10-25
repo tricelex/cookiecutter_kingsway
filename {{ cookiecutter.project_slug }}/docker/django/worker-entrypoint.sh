@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 
-until cd src
+set -o errexit
+set -o nounset
+set -o pipefail
+
+until cd config
 do
     echo "Waiting for volume..."
 done
 
-C_FORCE_ROOT=true DJANGO_SETTINGS_MODULE="config.django.base" poetry run celery worker -A quickcheckbackend -l debug
+watchfiles celery.__main__.main --args '-A {{ cookiecutter.project_slug }}.tasks.celery worker -l INFO'

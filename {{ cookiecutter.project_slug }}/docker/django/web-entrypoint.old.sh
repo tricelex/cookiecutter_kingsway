@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-until cd src
+until cd config
 do
     echo "Waiting for django volume..."
 done

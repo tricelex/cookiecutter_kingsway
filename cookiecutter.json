@@ -6,5 +6,7 @@
   "organization": "My Awesome Organization",
   
   "author_name": "Emmanuel Okoye",
-  "author_email": "tricelex@gmail.com"
+  "author_email": "tricelex@gmail.com",
+
+  "use_mailhog": "n"
 }
