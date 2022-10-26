@@ -4,9 +4,4 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-until cd config
-do
-    echo "Waiting for volume..."
-done
-
 watchfiles celery.__main__.main --args '-A {{ cookiecutter.project_slug }}.tasks.celery worker -l INFO'

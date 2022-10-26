@@ -111,7 +111,7 @@ services:
       - /flower-entrypoint.sh
     ports:
       - "5555:5555"
-    
+
 {%- if cookiecutter.use_mailhog == 'y' %}
   mailhog:
     <<: *common-spec
