@@ -19,7 +19,11 @@ x-django-container-spec:
       - "*"
   volumes:
     - &py-code-volume ".:/code"
-    - django-static:/var/www/django/static
+    - ".data/media:/files/media"
+    - &poetry-volume "${DPT_POETRY_CACHE_DIR:-.data/pycache/pypoetry}:/root/.cache/pypoetry"
+    - &pip-volume "${DPT_PIP_CACHE_DIR:-.data/pycache/pip}:/root/.cache/pip"
+    - &pyproject-volume "./pyproject.toml:/pyproject.toml"
+    - &poetrylock-volume "./poetry.lock:/poetry.lock"
   depends_on:
     - postgres
     - rabbitmq
@@ -34,16 +38,6 @@ x-celery-environment:
     SKIP_INSTALL: "1"
 
 services:
-  django:
-    <<: *django-container-spec
-    image: "{{ cookiecutter.project_slug }}:dev"
-    ports:
-      - "8000:8000"
-    volumes:
-      - *py-code-volume
-    command: python manage.py runserver 0.0.0.0:8000
-    entrypoint: /usr/bin/wait-for-it.sh postgres:5432 -t 60 -- entrypoint.sh --
-
   postgres:
     <<: *common-spec
     image: postgres:14.1
@@ -74,10 +68,74 @@ services:
       - RABBITMQ_DEFAULT_PASS=rabbitmq
       - RABBITMQ_DEFAULT_VHOST=my_vhost
 
+  django:
+    <<: *django-container-spec
+    image: "{{ cookiecutter.project_slug }}:dev"
+    ports:
+      - "8000:8000"
+    volumes:
+      - *py-code-volume
+    depends_on:
+      - postgres
+      - rabbitmq
+    command: >
+      bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    entrypoint: /usr/bin/wait-for-it.sh postgres:5432 -t 60 -- entrypoint.sh --
+
+  celery:
+    <<: *django-container-spec
+    <<: *celery-environment
+    restart: unless-stopped
+    entrypoint: /usr/bin/wait-for-it.sh postgres:5432 -t 60 -- entrypoint.sh --
+    # command: celery --app {{ cookiecutter.project_slug }}.tasks.celery worker --autoscale 6,2 --loglevel INFO
+    # Use in debug mode for watching
+    command: watchfiles celery.__main__.main --args '-A {{ cookiecutter.project_slug }}.tasks.celery worker -l INFO'
+
+  celery_beat:
+    <<: *django-container-spec
+    <<: *celery-environment
+    container_name: lalala_celery_beat
+    volumes:
+      - ".data/celery:/celery"
+      - *py-code-volume
+      - *poetry-volume
+      - *pip-volume
+      - *pyproject-volume
+      - *poetrylock-volume
+    depends_on:
+      - postgres
+      - rabbitmq
+      - django
+    entrypoint: entrypoint.sh --
+    # Disable pidfile by specifying an empty one. We used fixed container_name which provides single-running-process
+    #  guarantee and the lack of pidfile ensures that Celery Beat starts even if the Docker container was killed and
+    #  then restarted (in which case the pidfile would still be present).
+    command: celery --app {{ cookiecutter.project_slug }}.tasks.celery beat --loglevel INFO --pidfile= --schedule /celery/celerybeat-schedule
+
+  flower:
+    <<: *django-container-spec
+    <<: *celery-environment
+    container_name: {{ cookiecutter.project_slug }}_flower
+    volumes:
+      - ".data/celery:/celery"
+      - *py-code-volume
+      - *poetry-volume
+      - *pip-volume
+      - *pyproject-volume
+      - *poetrylock-volume
+    depends_on:
+      - celery_beat
+    command: celery --app {{ cookiecutter.project_slug }}.tasks.celery  -b "${CELERY_BROKER_URL}" flower --loglevel INFO --basic_auth="${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}"
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_FLOWER_USER=flower
+      - CELERY_FLOWER_PASSWORD=flower
+
   mailhog:
     <<: *common-spec
     image: mailhog/mailhog:v1.0.0
-    container_name: temp_proj_mailhog
+    container_name: {{ cookiecutter.project_slug }}_mailhog
     ports:
       - "8025:8025"
     logging:
