@@ -1,0 +1,136 @@
+# This Dockerfile uses multi-stage build to customize DEV and PROD images:
+# https://docs.docker.com/develop/develop-images/multistage-build/
+
+FROM python:3.10 AS development_build
+
+LABEL maintainer="tricelex@gmail.com"
+LABEL vendor="kingsway.media"
+
+ENV PYTHONPYCACHEPREFIX /.pycache
+
+# Let all *.pyc files stay within the container, for Python >= 3.8
+RUN mkdir -p $PYTHONPYCACHEPREFIX
+
+
+# Use non-interactive frontend for debconf
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+# Install system requirements
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential gettext libpq-dev zlib1g-dev libjpeg62-turbo-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Python requirements dir and Install requirements
+RUN pip install -U pip 'setuptools<58' wheel poetry
+
+ARG DJANGO_ENV
+
+ARG DPT_VENV_CACHING
+
+ENV DJANGO_ENV=${DJANGO_ENV} \
+    # python:
+    PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PYTHONDONTWRITEBYTECODE=1
+# pip:
+# PIP_NO_CACHE_DIR=1 \
+# PIP_DISABLE_PIP_VERSION_CHECK=1 \
+# PIP_DEFAULT_TIMEOUT=100 \
+# dockerize:
+# DOCKERIZE_VERSION=v0.6.1 \
+# tini:
+# TINI_VERSION=v0.19.0 \
+# poetry:
+# POETRY_VERSION=1.1.13 \
+# POETRY_NO_INTERACTION=1 \
+# POETRY_CACHE_DIR='/var/cache/pypoetry' \
+# POETRY_HOME='/usr/local'
+
+# if --build-arg DPT_VENV_CACHING=1, set POETRY_VIRTUALENVS_CREATE to '1' or set to null otherwise.
+ENV POETRY_VIRTUALENVS_CREATE=${DPT_VENV_CACHING:+1}
+# if POETRY_VIRTUALENVS_CREATE is null, set it to '0' (or leave as is otherwise).
+ENV POETRY_VIRTUALENVS_CREATE=${POETRY_VIRTUALENVS_CREATE:-0}
+
+# -- begin image-specific commands
+
+COPY ./wait-for-it.sh /usr/bin/
+
+COPY ./scripts/django-dev-entrypoint.sh /usr/bin/entrypoint.sh
+
+# RUN groupadd -r web && useradd -d /code -r -g web web \
+#     && chown web:web -R /code \
+#     && mkdir -p /var/www/django/static /var/www/django/media \
+#     && chown web:web /var/www/django/static /var/www/django/media
+
+# Copy only requirements, to cache them in docker layer
+# COPY --chown=web:web ./poetry.lock ./pyproject.toml /code/
+COPY pyproject.toml /
+COPY poetry.lock /
+
+
+# Install all dependencies from poetry.lock (dev included by default)
+#
+# Note: Install is skipped when DPT_VENV_CACHING=1
+ENV DPT_VENV_CACHING=${DPT_VENV_CACHING:-''}
+RUN test "${DPT_VENV_CACHING}" = "1" && \
+    echo "skipped install during build" || \
+    poetry install
+
+# Set up PATH to include virtualenv path when DPT_VENV_CACHING is set
+#
+# When the project name or base python changes then ENV_FOLDER needs to be updated
+#  accordingly. New path can be generated with the command `make dev-venv-path`.
+#
+# See context here https://github.com/python-poetry/poetry/issues/1579#issuecomment-586020242
+ENV ENV_FOLDER=temp_proj-9TtSrW0h-py310
+ENV ENV_DIR="/root/.cache/pypoetry/virtualenvs/${ENV_FOLDER}"
+ENV VIRTUAL_ENV=${DPT_VENV_CACHING:+${ENV_DIR}}
+
+ENV PATH="${VIRTUAL_ENV:-'/fake'}/bin:${PATH}"
+
+# SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
+# System deps, we don't use exact versions because it is hard to update them, pin when needed:
+# hadolint ignore=DL3008
+# RUN apt-get update && apt-get upgrade -y \
+#     && apt-get install --no-install-recommends -y \
+#     bash \
+#     build-essential \
+#     curl \
+#     gettext \
+#     git \
+#     libpq-dev \
+#     # Installing `dockerize` utility:
+#     # https://github.com/jwilder/dockerize
+#     && curl -sSLO "https://github.com/jwilder/dockerize/releases/download/${DOCKERIZE_VERSION}/dockerize-linux-amd64-${DOCKERIZE_VERSION}.tar.gz" \
+#     && tar -C /usr/local/bin -xzvf "dockerize-linux-amd64-${DOCKERIZE_VERSION}.tar.gz" \
+#     && rm "dockerize-linux-amd64-${DOCKERIZE_VERSION}.tar.gz" && dockerize --version \
+#     # Installing `tini` utility:
+#     # https://github.com/krallin/tini
+#     # Get architecture to download appropriate tini release: See https://github.com/wemake-services/wemake-django-template/issues/1725
+#     && dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" \
+#     && curl -o /usr/local/bin/tini -sSLO "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${dpkgArch}" \
+#     && chmod +x /usr/local/bin/tini && tini --version \
+#     # Installing `poetry` package manager:
+#     # https://github.com/python-poetry/poetry
+#     && curl -sSL 'https://install.python-poetry.org' | python - \
+#     && poetry --version \
+#     # Cleaning cache:
+#     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+#     && apt-get clean -y && rm -rf /var/lib/apt/lists/*
+
+
+
+
+# Project initialization:
+# hadolint ignore=SC2046
+# RUN echo "$DJANGO_ENV" && poetry version \
+#     # Install deps:
+#     && poetry run pip install -U pip \
+#     && poetry install 
+
+
+WORKDIR /code
+
+CMD bash

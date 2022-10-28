@@ -1,0 +1,131 @@
+version: "3.9"
+
+x-common-spec:
+  &common-spec
+  env_file: ./config/.env
+  networks:
+    - webnet
+
+x-django-container-spec:
+  &django-container-spec
+  <<: *common-spec
+  build:
+    target: development_build
+    context: .
+    dockerfile: docker/django/Dockerfile
+    args:
+      DJANGO_ENV: development
+
+services:
+  db:
+    <<: *common-spec
+    image: postgres:14.1
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  rabbitmq:
+    <<: *common-spec
+    image: rabbitmq:3.7.2-management-alpine
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=JKSDFHSJF7834GHBF3FBEI
+      - RABBITMQ_DEFAULT_USER=rabbitmq
+      - RABBITMQ_DEFAULT_PASS=rabbitmq
+      - RABBITMQ_DEFAULT_VHOST=my_vhost
+
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  django:
+    &django
+    <<: *django-container-spec
+    image: "{{ cookiecutter.project_slug }}:dev"
+    build:
+      target: development_build
+      context: .
+      dockerfile: docker/django/Dockerfile
+      args:
+        DJANGO_ENV: development
+      cache_from:
+        - "{{ cookiecutter.project_slug }}:dev"
+        - "{{ cookiecutter.project_slug }}:latest"
+        - "*"
+
+    command: python -Wd manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_DATABASE_HOST: db
+    volumes:
+      - django-static:/var/www/django/static
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+    healthcheck:
+      # We use `$$` here because:
+      # one `$` goes to shell,
+      # one `$` goes to `docker-compose.yml` escaping
+      test: |
+        /usr/bin/test $$(
+          /usr/bin/curl --fail http://localhost:8000/health/?format=json
+          --write-out "%{http_code}" --silent --output /dev/null
+        ) -eq 200
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    <<: *django
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+    entrypoint:
+      - /worker-entrypoint.sh
+
+  scheduler:
+    <<: *django
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+    entrypoint:
+      - /scheduler-entrypoint.sh
+
+  flower:
+    <<: *django
+    volumes:
+      - .:/code
+    entrypoint:
+      - /flower-entrypoint.sh
+    ports:
+      - "5555:5555"
+
+{%- if cookiecutter.use_mailhog == 'y' %}
+  mailhog:
+    <<: *common-spec
+    image: mailhog/mailhog:v1.0.0
+    container_name: {{ cookiecutter.project_slug }}_mailhog
+    ports:
+      - "8025:8025"
+{%- endif %}
+
+networks:
+  # Network for your internals, use it by default:
+  webnet:
+
+
+volumes:
+  pgdata:
+  django-static:
